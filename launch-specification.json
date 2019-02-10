@@ -1,0 +1,8 @@
+{
+  "ImageId": "ami-0e9073d7ac75f4491",
+  "InstanceType": "t2.micro",
+  "Placement": {
+    "AvailabilityZone": "eu-west-3a"
+  },
+  "SubnetId": "subnet-431ca82a"
+}

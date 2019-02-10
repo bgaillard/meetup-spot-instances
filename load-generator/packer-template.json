@@ -1,0 +1,60 @@
+{
+    "variables": {
+        "aws_profile": ""
+    },
+    "builders": [
+        {
+            "profile": "{{user `aws_profile`}}",
+            "type": "amazon-ebs",
+            "region": "eu-west-3",
+            "ami_name": "load-generator",
+            "associate_public_ip_address": true,
+            "instance_type": "t3.nano",
+            "ssh_username": "ec2-user",
+            "source_ami_filter": {
+                "filters": {
+                    "virtualization-type": "hvm",
+                    "name": "amzn2-ami-hvm-2.0.*-x86_64-gp2",
+                    "root-device-type": "ebs"
+                },
+                "owners": [
+                    "amazon"
+                ],
+                "most_recent": true
+            },
+            "subnet_filter": {
+                "filters": {
+                    "tag:Name": "meetup-spot-instances-public-subnet-*"
+                },
+                "most_free": true,
+                "random": true
+            },
+            "tags": {
+                "Name": "load-generator"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "inline": [
+                "sleep 30",
+                "sudo yum update -y",
+                "sudo yum install httpd-tools -y",
+                "sudo systemctl enable amazon-ssm-agent",
+                "sudo systemctl start amazon-ssm-agent"
+            ]
+        },
+        {
+            "type": "file",
+            "source": "{{template_dir}}/generate_load.sh",
+            "destination": "/home/ec2-user/generate_load.sh"
+        },
+        {
+            "type": "shell",
+            "inline": [
+                "sudo mv /home/ec2-user/generate_load.sh /"
+            ]
+        }
+    ]
+}

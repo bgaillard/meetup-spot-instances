@@ -1,0 +1,162 @@
+Parameters:
+    VPCID:
+        Type: String
+
+Resources:
+
+    ####################################################################################################################
+    # Mapper
+    ####################################################################################################################
+    MapperInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Roles:
+                - !Ref MapperRole
+            InstanceProfileName: "meetup-spot-instances-demo1-mapper"
+    MapperLaunchTemplate:
+        Type: "AWS::EC2::LaunchTemplate"
+        Properties:
+            LaunchTemplateName: "meetup-spot-instances-demo1-mapper"
+            LaunchTemplateData:
+                SecurityGroupIds:
+                  - !GetAtt MapperSecurityGroup.GroupId
+                TagSpecifications:
+                    - ResourceType: "instance"
+                      Tags:
+                          - Key: Name
+                            Value: "meetup-spot-instances-demo1-mapper"
+                UserData:
+                    Fn::Base64: !Sub |
+                        #!/bin/bash -xe
+                        python3 /home/ec2-user/mapper.py &
+                IamInstanceProfile:
+                    Name: !Ref MapperInstanceProfile
+                ImageId: "ami-04da9bfb28b53bb33"
+                InstanceType: "t2.micro"
+    MapperRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: "Allow"
+                      Principal:
+                          Service:
+                              - "ssm.amazonaws.com"
+                              - "ec2.amazonaws.com"
+                      Action:
+                          - "sts:AssumeRole"
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+            Policies:
+                - PolicyName: "S3Authorizations"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action: "*"
+                            Resource: "*"
+                - PolicyName: "SqsAuthorizations"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action: "*"
+                            Resource: "*"
+            RoleName: "meetup-spot-instances-demo1-mapper"
+    MapperSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: "meetup-spot-instances-demo1-mapper"
+            GroupDescription: "Meetup Spot Instances Demo 1 Mapper Security Group."
+            VpcId: !Ref VPCID
+            Tags:
+                - Key: Name
+                  Value: "meetup-spot-instances-demo1-mapper"
+
+    ####################################################################################################################
+    # Reducer
+    ####################################################################################################################
+    ReducerInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Roles:
+                - !Ref ReducerRole
+            InstanceProfileName: "meetup-spot-instances-demo1-reducer"
+    ReducerLaunchTemplate:
+        Type: "AWS::EC2::LaunchTemplate"
+        Properties:
+            LaunchTemplateName: "meetup-spot-instances-demo1-reducer"
+            LaunchTemplateData:
+                SecurityGroupIds:
+                  - !GetAtt ReducerSecurityGroup.GroupId
+                TagSpecifications:
+                    - ResourceType: "instance"
+                      Tags:
+                          - Key: Name
+                            Value: "meetup-spot-instances-demo1-reducer"
+                UserData:
+                    Fn::Base64: !Sub |
+                        #!/bin/bash -xe
+                        python3 /home/ec2-user/reducer.py &
+                IamInstanceProfile:
+                    Name: !Ref ReducerInstanceProfile
+                ImageId: "ami-0298623f1501c7f03"
+                InstanceType: "t2.micro"
+    ReducerRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: "Allow"
+                      Principal:
+                          Service:
+                              - "ssm.amazonaws.com"
+                              - "ec2.amazonaws.com"
+                      Action:
+                          - "sts:AssumeRole"
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+            Policies:
+                - PolicyName: "S3Authorizations"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action: "*"
+                            Resource: "*"
+                - PolicyName: "SqsAuthorizations"
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action: "*"
+                            Resource: "*"
+            RoleName: "meetup-spot-instances-demo1-reducer"
+    ReducerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: "meetup-spot-instances-demo1-reducer"
+            GroupDescription: "Meetup Spot Instances Demo 1 Reducer Security Group."
+            VpcId: !Ref VPCID
+            Tags:
+                - Key: Name
+                  Value: "meetup-spot-instances-demo1-reducer"
+
+    ####################################################################################################################
+    # DynamoDB results table
+    ####################################################################################################################
+    WordsDynamoDBTable:
+        Type: AWS::DynamoDB::Table
+        Properties:
+            AttributeDefinitions:
+                - AttributeName: "word"
+                  AttributeType: "S"
+            KeySchema:
+                - AttributeName: "word"
+                  KeyType: "HASH"
+            ProvisionedThroughput:
+                ReadCapacityUnits: 5
+                WriteCapacityUnits: 5
+            TableName: "words"

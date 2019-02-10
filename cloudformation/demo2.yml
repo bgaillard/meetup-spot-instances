@@ -1,0 +1,491 @@
+# TODO: Etre capable de répondre aux questions suivantes
+#     - Que se passe t-il si on est pas en 'terminate'
+#     - Que se passe t-il si le prix spécifié est trop bas
+#     - Que se passe t-il si la configuration est 'persistent'
+
+Parameters:
+    PrivateSubnet1ID:
+        Type: String
+    PrivateSubnet2ID:
+        Type: String
+    PrivateSubnet3ID:
+        Type: String
+    PublicSubnet1ID:
+        Type: String
+    PublicSubnet2ID:
+        Type: String
+    PublicSubnet3ID:
+        Type: String
+    VPCID:
+        Type: String
+
+Resources:
+
+    # Marche et creer une Spot Fleet automatiquement et visible en utilisant la commande suivante. La Fleet est aussi
+    # visible dans les Tags des instances EC2 demarrees
+    #
+    # aws ec2 describe-fleets --profile baptiste --region eu-west-3 --fleet-ids fleet-13b1ac75-5f58-ddfb-8618-a90ace5a8670
+    #
+    # Cependant ne permet pas de gérer les interruptions correctement
+    #     Voir : https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-launch-spot-instances.html
+    #     Indiquer que Spot est intergre a d'autres services AWS et les lister
+    #AutoScalingGroup:
+    #    Type: AWS::AutoScaling::AutoScalingGroup
+    #    Properties:
+    #        AutoScalingGroupName: "demo2-auto-scaling-group"
+    #        AvailabilityZones: !GetAZs
+    #            Ref: AWS::Region
+    #        DesiredCapacity: 1
+    #        HealthCheckGracePeriod: 30
+    #        HealthCheckType: ELB
+    #        MaxSize: 4
+    #        MinSize: 1
+    #        # TODO: Ce paramètre permet de mixer des instances à la Demande et Spot
+    #        MixedInstancesPolicy:
+    #            InstancesDistribution:
+    #                OnDemandAllocationStrategy: prioritized
+    #                OnDemandBaseCapacity: 0
+    #                OnDemandPercentageAboveBaseCapacity: 100
+    #                SpotAllocationStrategy: lowest-price
+    #                SpotInstancePools: 2
+    #            LaunchTemplate:
+    #                LaunchTemplateSpecification:
+    #                    LaunchTemplateId: !Ref LaunchTemplate
+    #                    Version: !GetAtt LaunchTemplate.LatestVersionNumber
+    #                Overrides:
+    #                    - InstanceType: t3.nano
+    #                    - InstanceType: t3.micro
+    #        Tags:
+    #            - Key: Name
+    #              PropagateAtLaunch: true
+    #              Value: "demo2-instance"
+    #        #TargetGroupARNs:
+    #        #  - String
+    #        VPCZoneIdentifier:
+    #            - !Ref PrivateSubnet1ID
+    #            - !Ref PrivateSubnet2ID
+    #            - !Ref PrivateSubnet3ID
+
+    BackupAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            AutoScalingGroupName: "demo2-backup-auto-scaling-group"
+            AvailabilityZones: !GetAZs
+                Ref: AWS::Region
+            DesiredCapacity: 0
+            HealthCheckGracePeriod: 30
+            HealthCheckType: ELB
+            LaunchTemplate:
+                LaunchTemplateId: !Ref LaunchTemplate
+                Version: !GetAtt LaunchTemplate.LatestVersionNumber
+            MaxSize: 4
+            MinSize: 0
+            Tags:
+                - Key: Name
+                  PropagateAtLaunch: true
+                  Value: "demo2-instance"
+            TargetGroupARNs:
+                - !Ref LoadBalancerTargetGroup
+            VPCZoneIdentifier:
+                - !Ref PrivateSubnet1ID
+                - !Ref PrivateSubnet2ID
+                - !Ref PrivateSubnet3ID
+
+    SpotFleet:
+        Type: AWS::EC2::SpotFleet
+        Properties:
+            SpotFleetRequestConfigData:
+                AllocationStrategy: "diversified" # Do not use 'lowestPrice' to distribute evenly accross AZs
+                IamFleetRole: !GetAtt [SpotFleetRole, Arn]
+                InstanceInterruptionBehavior: "terminate"
+                ReplaceUnhealthyInstances: true
+                SpotPrice: "0.0041"
+                TargetCapacity: 1
+                TerminateInstancesWithExpiration: true
+                Type: "maintain"
+                LaunchTemplateConfigs:
+                    -
+                        LaunchTemplateSpecification:
+                            LaunchTemplateId: !Ref LaunchTemplate
+                            Version: !GetAtt LaunchTemplate.LatestVersionNumber
+                        Overrides:
+                            # 't2.micro'
+                            -
+                                AvailabilityZone: !Select
+                                    - 0
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.micro
+                                SpotPrice: 0.0041
+                                SubnetId: !Ref PrivateSubnet1ID
+                            -
+                                AvailabilityZone: !Select
+                                    - 1
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.micro
+                                SpotPrice: 0.0041
+                                SubnetId: !Ref PrivateSubnet2ID
+                            -
+                                AvailabilityZone: !Select
+                                    - 2
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.micro
+                                SpotPrice: 0.0041
+                                SubnetId: !Ref PrivateSubnet3ID
+                            # 't2.small'
+                            -
+                                AvailabilityZone: !Select
+                                    - 0
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.small
+                                SpotPrice: 0.008
+                                SubnetId: !Ref PrivateSubnet1ID
+                            -
+                                AvailabilityZone: !Select
+                                    - 1
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.small
+                                SpotPrice: 0.008
+                                SubnetId: !Ref PrivateSubnet2ID
+                            -
+                                AvailabilityZone: !Select
+                                    - 2
+                                    - !GetAZs
+                                      Ref: AWS::Region
+                                InstanceType: t2.small
+                                SpotPrice: 0.008
+                                SubnetId: !Ref PrivateSubnet3ID
+                # TODO: Voir comment specifier la portion On-Demand
+
+    # TODO: Voir les EC2 Fleet
+    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-ec2fleet.html
+
+    SpotFleetRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2008-10-17
+                Statement:
+                    - Sid: ''
+                      Effect: Allow
+                      Principal:
+                          Service: spotfleet.amazonaws.com
+                      Action: 'sts:AssumeRole'
+            ManagedPolicyArns:
+                - 'arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole'
+
+    # Service Linked Role are also required, to create them use the following CLI commands
+    #
+    #    aws iam create-service-linked-role --aws-service-name spot.amazonaws.com
+    #    aws iam create-service-linked-role --aws-service-name spotfleet.amazonaws.com
+    #
+    # see https://docs.aws.amazon.com/batch/latest/userguide/spot_fleet_IAM_role.html
+
+    SpotFleetScalingRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: "Allow"
+                        Principal:
+                            Service:
+                                - "application-autoscaling.amazonaws.com"
+                        Action:
+                            - "sts:AssumeRole"
+            Path: "/"
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetAutoscaleRole"
+
+    SpotFleetScalingTarget:
+        Type: AWS::ApplicationAutoScaling::ScalableTarget
+        Properties:
+            MaxCapacity: 4
+            MinCapacity: 1
+            ResourceId: !Join
+              - /
+              - - spot-fleet-request
+                - !Ref SpotFleet
+            RoleARN: !GetAtt SpotFleetScalingRole.Arn
+            ScalableDimension: 'ec2:spot-fleet-request:TargetCapacity'
+            ServiceNamespace: ec2
+
+    SpotFleetAutoScalingPolicy:
+        Type: AWS::ApplicationAutoScaling::ScalingPolicy
+        Properties:
+            PolicyName: "demo2-spot-fleet-auto-scaling-policy"
+            PolicyType: TargetTrackingScaling
+            ScalingTargetId: !Ref SpotFleetScalingTarget
+            TargetTrackingScalingPolicyConfiguration:
+                PredefinedMetricSpecification:
+                    PredefinedMetricType: "EC2SpotFleetRequestAverageCPUUtilization"
+                DisableScaleIn: False
+                ScaleInCooldown: 60
+                ScaleOutCooldown: 60
+                TargetValue: 50
+
+    ####################################################################################################################
+    # Lambda functions
+    ####################################################################################################################
+    InterruptionEventRule:
+        Type: AWS::Events::Rule
+        Properties:
+            Description: Events rule for EC2 Spot Instance Interruption Notices
+            Name: "demo2-interruption-event-rule"
+            EventPattern:
+                detail-type:
+                    - EC2 Spot Instance Interruption Warning
+                source:
+                    - aws.ec2
+            State: ENABLED
+            Targets:
+                - Arn: !GetAtt EventListenerLambda.Arn
+                  Id: !Ref EventListenerLambda
+
+    EventListenerLambdaPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt EventListenerLambda.Arn
+            Principal: events.amazonaws.com
+            SourceArn: !GetAtt InterruptionEventRule.Arn
+
+    EventListenerLambda:
+        Type: AWS::Lambda::Function
+        Properties:
+            FunctionName: "demo2-event-listener"
+            Handler: "event_listener.lambda_handler"
+            Role: !GetAtt EventListenerLambdaExecutionRole.Arn
+            Code:
+                S3Bucket: "meetup-spot-instances"
+                S3Key: "demo2/event-listener-1.0.0.zip"
+            Runtime: "python3.7"
+
+    EventListenerLambdaExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: "demo2-event-listener-lambda-execution-role"
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Sid: ''
+                      Effect: Allow
+                      Principal:
+                          Service: lambda.amazonaws.com
+                      Action: 'sts:AssumeRole'
+
+    EventListenerLambdaExecutionPolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+            PolicyName: "demo2-event-listener-lambda-execution-policy"
+            Roles:
+                - !Ref EventListenerLambdaExecutionRole
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: "Allow"
+                        Action:
+                            - logs:*
+                        Resource: "arn:aws:logs:*:*:*"
+
+    ####################################################################################################################
+    # ECS Cluster and Service
+    ####################################################################################################################
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: "demo2-cluster"
+    ECSService:
+        Type: AWS::ECS::Service
+        Properties:
+            Cluster: !Ref ECSCluster
+            DeploymentConfiguration:
+                MaximumPercent: 100
+                MinimumHealthyPercent: 0
+            LaunchType: EC2
+            LoadBalancers:
+                - ContainerName: hello-world
+                  ContainerPort: 80
+                  TargetGroupArn: !Ref LoadBalancerTargetGroup
+            Role: !Ref ECSRole
+            SchedulingStrategy: DAEMON
+            ServiceName: "demo2-service"
+            TaskDefinition: !Ref ECSTaskDefinition
+        DependsOn:
+            - BackupAutoScalingGroup
+            - SpotFleet
+    ECSRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2008-10-17
+                Statement:
+                    - Sid: ''
+                      Effect: Allow
+                      Principal:
+                          Service: ecs.amazonaws.com
+                      Action: 'sts:AssumeRole'
+            ManagedPolicyArns:
+                - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole'
+    ECSTaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            NetworkMode: bridge
+            ContainerDefinitions:
+                -
+                    Name: hello-world
+                    Image: dockercloud/hello-world
+                    MemoryReservation: 256
+                    PortMappings:
+                        -
+                            ContainerPort: 80
+                            HostPort: 80
+    AmazonEC2ContainerServiceforEC2Role:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Effect: "Allow"
+                        Principal:
+                            Service:
+                                - "ec2.amazonaws.com"
+                        Action:
+                            - "sts:AssumeRole"
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+            Policies:
+                -
+                 PolicyName: AmazonEC2ContainerServiceforEC2Role
+                 PolicyDocument:
+                    Version: "2012-10-17"
+                    Statement:
+                      -
+                        Effect: "Allow"
+                        Action:
+                            - ecs:CreateCluster
+                            - ecs:DeregisterContainerInstance
+                            - ecs:DiscoverPollEndpoint
+                            - ecs:Poll
+                            - ecs:RegisterContainerInstance
+                            - ecs:StartTelemetrySession
+                            - ecs:Submit*
+                            - ecr:GetAuthorizationToken
+                            - ecr:BatchCheckLayerAvailability
+                            - ecr:GetDownloadUrlForLayer
+                            - ecr:BatchGetImage
+                            - logs:CreateLogStream
+                            - logs:PutLogEvents
+                        Resource: "*"
+            RoleName: AmazonEC2ContainerServiceforEC2Role
+
+
+    ####################################################################################################################
+    # EC2 Instances
+    ####################################################################################################################
+    InstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+          Roles:
+            - !Ref AmazonEC2ContainerServiceforEC2Role
+          InstanceProfileName: "demo2-instance-profile"
+    InstanceSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: aws-nantes-instance
+            GroupDescription: Security group dedicated to Wordpress web server instances.
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+            Tags:
+                - Key: Name
+                  Value: "demo2-instance-security-group"
+            VpcId: !Ref VPCID
+    LaunchTemplate:
+        Type: AWS::EC2::LaunchTemplate
+        Properties:
+            LaunchTemplateName: "demo2-launch-template"
+            LaunchTemplateData:
+                TagSpecifications:
+                    - ResourceType: instance
+                      Tags:
+                          - Key: Name
+                            Value: "demo2-instance"
+                    - ResourceType: volume
+                      Tags:
+                          - Key: Name
+                            Value: "demo2-volume"
+                UserData:
+                    Fn::Base64:
+                        !Sub |
+                            #!/bin/bash
+                            ping -c 5 www.google.com
+                            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                            systemctl start amazon-ssm-agent
+                            echo "ECS_CLUSTER=demo2-cluster" >> /etc/ecs/ecs.config
+                IamInstanceProfile:
+                    Name: !Ref InstanceProfile
+                Monitoring:
+                    Enabled: true
+                SecurityGroupIds:
+                    - !Ref InstanceSecurityGroup
+                ImageId: ami-0ca148151641c602a
+                InstanceType: t3.nano
+
+    ####################################################################################################################
+    # Load Balancer
+    ####################################################################################################################
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: "demo2-load-balancer"
+            Scheme: internet-facing
+            SecurityGroups:
+                - !Ref LoadBalancerSecurityGroup
+            Subnets:
+                - !Ref PublicSubnet1ID
+                - !Ref PublicSubnet2ID
+                - !Ref PublicSubnet3ID
+            Type: application
+    LoadBalancerHttpListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref LoadBalancerTargetGroup
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 80
+            Protocol: HTTP
+    LoadBalancerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: aws-nantes-load-balancer
+            GroupDescription: Security group dedicated to Wordpress load balancer instances.
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+            Tags:
+                - Key: Name
+                  Value: aws-nantes-load-balancer
+            VpcId: !Ref VPCID
+    LoadBalancerTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            HealthCheckPort: 80
+            HealthCheckProtocol: HTTP
+            Name: "demo2-loader-balancer"
+            Port: 80
+            Protocol: HTTP
+            TargetType: instance
+            VpcId: !Ref VPCID

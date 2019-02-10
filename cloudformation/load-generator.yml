@@ -1,0 +1,53 @@
+Parameters:
+    PrivateSubnet1ID:
+        Type: String
+    VPCID:
+        Type: String
+
+Resources:
+
+    LoadGeneratorRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: "Allow"
+                      Principal:
+                          Service:
+                              - "ssm.amazonaws.com"
+                              - "ec2.amazonaws.com"
+                      Action:
+                          - "sts:AssumeRole"
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+
+    LoadGeneratorInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Roles:
+                - !Ref LoadGeneratorRole
+            InstanceProfileName: "load-generator-instance-profile"
+
+    LoadGeneratorInstance:
+        Type: AWS::EC2::Instance
+        Properties:
+            IamInstanceProfile: !Ref LoadGeneratorInstanceProfile
+            ImageId: "ami-0f93f21cf0cce0114"
+            InstanceType: "t3.nano"
+            SecurityGroupIds:
+                - !Ref LoadGeneratorSecurityGroup
+            SubnetId: !Ref PrivateSubnet1ID
+            Tags:
+                - Key: Name
+                  Value: "load-generator"
+
+    LoadGeneratorSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: "load-generator"
+            GroupDescription: "Meetup Spot Instances Load Generator Security Group."
+            VpcId: !Ref VPCID
+            Tags:
+                - Key: Name
+                  Value: "load-generator"

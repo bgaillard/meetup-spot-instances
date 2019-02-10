@@ -1,0 +1,56 @@
+{
+    "variables": {
+        "aws_profile": ""
+    },
+    "builders": [
+        {
+            "profile": "{{user `aws_profile`}}",
+            "type": "amazon-ebs",
+            "region": "eu-west-3",
+            "ami_name": "meetup-spot-instances-demo1-mapper",
+            "associate_public_ip_address": true,
+            "iam_instance_profile": "meetup-spot-instances-demo1-mapper",
+            "instance_type": "t3.nano",
+            "ssh_username": "ec2-user",
+            "source_ami_filter": {
+                "filters": {
+                    "virtualization-type": "hvm",
+                    "name": "amzn2-ami-hvm-2.0.*-x86_64-gp2",
+                    "root-device-type": "ebs"
+                },
+                "owners": [
+                    "amazon"
+                ],
+                "most_recent": true
+            },
+            "subnet_filter": {
+                "filters": {
+                    "tag:Name": "meetup-spot-instances-public-subnet-*"
+                },
+                "most_free": true,
+                "random": true
+            },
+            "tags": {
+                "Name": "meetup-spot-instances-demo1-mapper"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "inline": [
+                "sleep 30",
+                "sudo yum update -y",
+                "sudo yum install -y python3",
+                "sudo pip3 install boto3",
+                "sudo systemctl enable amazon-ssm-agent",
+                "sudo systemctl start amazon-ssm-agent"
+            ]
+        },
+        {
+            "type": "file",
+            "source": "{{template_dir}}/mapper.py",
+            "destination": "/home/ec2-user/mapper.py"
+        }
+    ]
+}

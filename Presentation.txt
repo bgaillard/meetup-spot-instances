@@ -1,0 +1,3 @@
+Comment faire des économies sur vos coûts de serveurs Amazon AWS ? 
+
+Baptiste Gaillard de chez Gens de Confiance nous expliquera le fonctionnement des instances Spot. Plusieurs démos seront présentées ainsi qu'un retour d'expérience sur la mise en place d'environnements de staging et d'un cluster Jenkins profitant de Spot Fleets.

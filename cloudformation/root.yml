@@ -1,0 +1,46 @@
+Resources:
+
+    Demo1Stack:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            Parameters:
+                VPCID: !GetAtt VPCStack.Outputs.VPCID
+            Tags:
+                - Key: Name
+                  Value: meetup-spot-instances-demo1
+            TemplateURL: https://s3.eu-west-3.amazonaws.com/meetup-spot-instances/cloudformation/demo1.yml
+
+    Demo2Stack:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            Parameters:
+                PrivateSubnet1ID: !GetAtt VPCStack.Outputs.PrivateSubnet1ID
+                PrivateSubnet2ID: !GetAtt VPCStack.Outputs.PrivateSubnet2ID
+                PrivateSubnet3ID: !GetAtt VPCStack.Outputs.PrivateSubnet3ID
+                PublicSubnet1ID: !GetAtt VPCStack.Outputs.PublicSubnet1ID
+                PublicSubnet2ID: !GetAtt VPCStack.Outputs.PublicSubnet2ID
+                PublicSubnet3ID: !GetAtt VPCStack.Outputs.PublicSubnet3ID
+                VPCID: !GetAtt VPCStack.Outputs.VPCID
+            Tags:
+                - Key: Name
+                  Value: meetup-spot-instances-demo2
+            TemplateURL: https://s3.eu-west-3.amazonaws.com/meetup-spot-instances/cloudformation/demo2.yml
+
+    LoadGeneratorStack:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            Parameters:
+                PrivateSubnet1ID: !GetAtt VPCStack.Outputs.PrivateSubnet1ID
+                VPCID: !GetAtt VPCStack.Outputs.VPCID
+            Tags:
+                - Key: Name
+                  Value: load-generator
+            TemplateURL: https://s3.eu-west-3.amazonaws.com/meetup-spot-instances/cloudformation/load-generator.yml
+
+    VPCStack:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: meetup-spot-instances-vpc
+            TemplateURL: https://s3.eu-west-3.amazonaws.com/meetup-spot-instances/cloudformation/vpc.yml
